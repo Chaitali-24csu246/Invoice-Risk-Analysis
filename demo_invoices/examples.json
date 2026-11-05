@@ -1,0 +1,38 @@
+{
+  "Example 1": {
+    "filename": "demo_invoice_1.pdf",
+    "features": {
+      "customerID": "8820-BLYDZ",
+      "countryCode": "391",
+      "PaperlessBill": "Electronic",
+      "InvoiceAmount": 70.91
+    },
+    "actual_late": 0,
+    "actual_days_overdue": 0,
+    "invoiceNumber": "3732687518"
+  },
+  "Example 2": {
+    "filename": "demo_invoice_2.pdf",
+    "features": {
+      "customerID": "9323-NDIOV",
+      "countryCode": "770",
+      "PaperlessBill": "Electronic",
+      "InvoiceAmount": 65.0
+    },
+    "actual_late": 1,
+    "actual_days_overdue": 7,
+    "invoiceNumber": "176953642"
+  },
+  "Example 3": {
+    "filename": "demo_invoice_3.pdf",
+    "features": {
+      "customerID": "0465-DTULQ",
+      "countryCode": "770",
+      "PaperlessBill": "Electronic",
+      "InvoiceAmount": 83.36
+    },
+    "actual_late": 0,
+    "actual_days_overdue": 0,
+    "invoiceNumber": "8301711992"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "classifier": "Logistic Regression | ordinary",
+  "regressor": "Ridge",
+  "classification_threshold": 0.3233642965029199,
+  "classification_target": "1 if settled after due date, otherwise 0",
+  "regression_target": "max(0, settlement date minus due date), in days",
+  "features": [
+    "customerID",
+    "countryCode",
+    "PaperlessBill",
+    "InvoiceAmount"
+  ],
+  "excluded_feature": "Disputed: availability at invoice issue uncertain",
+  "dataset_scope": "Company-specific synthetic/sample invoice records",
+  "probabilities_calibrated": false,
+  "validation_start": "2013-02-26",
+  "test_start": "2013-07-12",
+  "rows": {
+    "train": 1390,
+    "validation": 409,
+    "test": 500
+  },
+  "classification_test": {
+    "Average_precision": 0.7053468923149926,
+    "ROC_AUC": 0.8691871901801872,
+    "Precision": 0.6337209302325582,
+    "Recall": 0.7676056338028169,
+    "F1": 0.6942675159235668
+  },
+  "regression_test": {
+    "MAE_days": 2.2623989209192312,
+    "RMSE_days": 3.836243597473601,
+    "R2": 0.34227760077533587,
+    "Late_only_MAE": 4.3461032428879465
+  },
+  "python_version": "3.13.15"
+}
