@@ -1,19 +1,14 @@
-# Verification
+# Verification — 22 November 2026
 
-Checked on 4 November 2026.
+Passed locally on Python 3.12.14 using requirements.txt:
 
-## Passed
+- Refit all eight pipelines using the revised notebook's CV-selected configurations and original chronological training rows.
+- Reproduced all five test average-precision scores and all three regression test MAEs to the notebook's four-decimal rounding tolerance.
+- Reloaded the exported bundle and matched all 500 test predictions for each of the eight models against saved evaluation predictions (classification scores within 1e-7, regression within 1e-10; class decisions identical).
+- 16 automated tests passed. Coverage includes all 15 model combinations across three demo records, default predictions, unknown models/customers, invalid amounts/files, conservative ambiguous total/date parsing, safe CSV export, text PDF parsing and real PNG OCR.
+- Streamlit AppTest exercised demo analysis, model switching, selected model names in history, comparison tables for validation and test, review confirmation and manual-input validation.
+- Streamlit started successfully; the HTTP health endpoint and main HTML returned status 200.
 
-- All 500 exported test-set classification scores and regression predictions reproduced from the matching invoice inputs, within 1e-10 tolerance.
-- 12 automated checks passed: demo prediction parity, text-PDF extraction, PNG OCR, unknown-customer rejection, invalid amount rejection, ambiguous total handling, ambiguous date handling, invalid file rejection, safe CSV export, full demo/save/history/performance flow, required review confirmation and missing manual-input validation.
-- Streamlit startup, HTTP health endpoint and main HTML response passed.
-- All three demo invoice renders were visually inspected.
-- The supplied model and metadata files were preserved without retraining or modification.
+The eight fitted models are included; the app does not train during use. Tests can be rerun with `python -m unittest discover -s tests -v`.
 
-## Environment and limits
-
-Local verification used Python 3.12 with the exported NumPy, pandas, SciPy, scikit-learn and joblib versions. The supplied training metadata records Python 3.13; the Dockerfile uses Python 3.13 to match that major/minor version. The selected models require no XGBoost runtime.
-
-Streamlit AppTest exercised the UI behaviour; no browser-based visual review of the web app was performed. PDF layout was inspected. The Docker image was prepared but not built in this environment, and no Hugging Face account deployment was performed. Windows/macOS launcher execution was not available for verification here.
-
-Parsing is intentionally conservative and does not support every invoice layout. User review is required. Text PDFs and the demo work without Tesseract; photo/scanned-PDF OCR needs the system Tesseract executable, installed in the Dockerfile.
+Limitations of verification: no browser-based visual review, no Docker build, no Windows/macOS launcher execution, and no cloud deployment were performed. AppTest verifies Streamlit behaviour but is not a browser-rendering test. The GitHub remote has not been changed. The old app's document-parsing implementation and visual styling were retained.

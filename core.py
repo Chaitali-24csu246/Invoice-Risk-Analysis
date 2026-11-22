@@ -21,12 +21,19 @@ def load_assets():
     # Load only the project's trusted local model; never accept uploaded pickle files.
     bundle = joblib.load(ROOT / 'models/invoice_models.joblib')
     metadata = json.loads((ROOT / 'models/metadata.json').read_text())
-    encoder = bundle['classifier'].named_steps['preprocess'].named_transformers_['categories']
+    encoder = bundle['classifier'].named_steps['preprocess'].named_transformers_['categories'].named_steps['encode']
     categories = dict(zip(bundle['categorical_features'], encoder.categories_))
     return bundle, metadata, {k: list(map(str, v)) for k, v in categories.items()}
 
 
-def score_invoice(fields, bundle, categories):
+def score_invoice(fields, bundle, categories, classifier_name=None, regressor_name=None):
+    classifier_name = classifier_name or bundle['default_classifier']
+    regressor_name = regressor_name or bundle['default_regressor']
+    if classifier_name not in bundle['classifiers'] or regressor_name not in bundle['regressors']:
+        raise ValueError('Select an available model.')
+    classifier = bundle['classifiers'][classifier_name]
+    regressor = bundle['regressors'][regressor_name]
+    threshold = bundle['thresholds'][classifier_name]
     clean = {}
     for key in bundle['categorical_features']:
         value = str(fields.get(key, '')).strip()
@@ -44,15 +51,18 @@ def score_invoice(fields, bundle, categories):
     issued, due = fields.get('InvoiceDate'), fields.get('DueDate')
     if issued and due and due < issued:
         raise ValueError('Due date cannot be earlier than the invoice date.')
+    clean['payment_terms_days'] = (due - issued).days if issued and due else 30
     x = pd.DataFrame([clean], columns=bundle['features'])
-    classes = list(bundle['classifier'].classes_)
-    score = float(bundle['classifier'].predict_proba(x)[0, classes.index(1)])
-    days = max(float(bundle['regressor'].predict(x)[0]), bundle.get('regression_clip_min', 0))
+    classes = list(classifier.classes_)
+    score = float(classifier.predict_proba(x)[0, classes.index(1)])
+    days = max(float(regressor.predict(x)[0]), bundle.get('regression_clip_min', 0))
     return {
+        'classifier': classifier_name,
+        'regressor': regressor_name,
         'late_score': score,
-        'predicted_late': int(score >= bundle['classification_threshold']),
+        'predicted_late': int(score >= threshold),
         'predicted_days_overdue': days,
-        'threshold': float(bundle['classification_threshold']),
+        'threshold': float(threshold),
     }
 
 

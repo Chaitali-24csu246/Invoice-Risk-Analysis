@@ -1,52 +1,78 @@
----
-title: Invoice Lens
-emoji: 📄
-colorFrom: blue
-colorTo: green
-sdk: docker
-app_port: 7860
-pinned: false
----
+# Invoice Lens — Invoice Risk Analysis
 
-# Invoice Lens
+A company-specific academic prototype that reads an invoice, lets the user confirm its details, and predicts **late payment** and **days overdue**. It does not predict permanent non-payment or fraud.
 
-A company-specific invoice payment-risk demo using the supplied Logistic Regression and Ridge models. Upload a PDF/photo, review the fields, run both models, and save results for the session. Three prepared invoices make the classroom demonstration reproducible.
+## What is included
 
-**Start with [START_HERE.md](START_HERE.md).**
+- Original demo, PDF/image upload, OCR, manual entry, review and session-history workflow.
+- Five selectable classifiers: Logistic Regression, Decision Tree, Random Forest, Gradient Boosting and XGBoost.
+- Three selectable regressors: Ridge, Random Forest Regressor and Gradient Boosting Regressor.
+- XGBoost and Random Forest Regressor highlighted and preselected because they won the notebook's validation comparisons.
+- Compare models page: validation/test tables, metrics, charts, confusion matrices, fitted parameters and plain-language explanations. Dummy and median baselines are comparison references.
+- Same-invoice predictions from every model; history records the selected model names and threshold.
+- Eight fitted pipelines included in `models/invoice_models.joblib`. No model download, training or API key is needed to use the app.
 
 ## Run locally
 
-Use Python 3.13 (recommended). Python 3.12 was used for the supplied verification with matching model package versions. Run `python start.py`. On Windows, double-click `START_WINDOWS.bat`. On macOS, use `python3 start.py` from Terminal in this folder.
+Use Python 3.12. From this folder:
 
-The launcher installs dependencies once and opens the app. Text PDFs and the built-in demo work without Tesseract. Install Tesseract for photo/scanned-PDF OCR, or use the included Docker image, which installs it automatically.
+```bash
+python3 start.py
+```
 
-## Hugging Face Spaces
+The launcher creates `.venv`, installs requirements and opens the app. Alternatively:
 
-Create a new Docker Space and upload **the contents of this folder**, preserving the `models/`, `demo_invoices/` and `.streamlit/` directories. Do not upload the ZIP as the only file. Keep this README and Dockerfile at the root. Choose an available CPU tier; a GPU is unnecessary. The repository build starts the app on port 7860. No token belongs in the source code. See START_HERE.md for browser and CLI upload instructions.
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m streamlit run app.py
+```
 
-## Model inputs
+On Windows activate with `.venv\Scripts\activate`. The included Mac/Windows launchers are also available.
 
-`customerID`, `countryCode`, `PaperlessBill`, `InvoiceAmount`.
+For image OCR install Tesseract separately: `brew install tesseract` on Mac, or `sudo apt-get install tesseract-ocr tesseract-ocr-eng` on Ubuntu. On Windows install Tesseract and add its executable to PATH. Text PDFs, prepared demo PDFs and manual entry work without OCR installation.
 
-Unknown categorical values and invalid amounts are blocked. Dates and invoice numbers are review fields only. Billing method is confirmed from the invoice/record, not inferred from the uploaded file format. No customer history or outcomes are fabricated or fetched during prediction. The score is uncalibrated; the exact saved threshold is used. Both models run independently and negative regression predictions are clipped at zero, matching the notebook.
+## Quick demonstration
 
-## Data and limits
+1. Open **Analyse invoice** and select a prepared demo.
+2. Review the fields, keep the recommended models, tick confirmation and analyse.
+3. Show the risk score, its cutoff and predicted delay. Reveal the recorded demo outcome.
+4. Choose another classifier/regressor and analyse again. Expand **Compare all models on this invoice**.
+5. Save both results, then open **Session history** to compare or export them.
+6. Open **Compare models**. Explain validation selection, test results and the baseline limitation.
 
-All training and recorded evaluation originated in the user's synthetic/sample-data project. Test invoices are from known customers; these results do not validate new companies or arbitrary receipts. Data currency is unspecified. Do not relabel the units as rupees/dollars or claim cross-currency reliability. Prediction concerns lateness, not permanent non-payment or fraud. Scanning is label-based extraction and needs user review, especially on unfamiliar layouts.
+## Model provenance and honest interpretation
 
-The original model files and evaluation files are unchanged from the user's export. XGBoost was a comparison candidate only; it is not needed to load the selected scikit-learn models.
+The model build reproduces the revised `Invoice_Risk_EndTerm.ipynb` configurations. Hyperparameters were chosen by GridSearchCV in the notebook using time-aware training folds. The build script refits those selected configurations; it does not repeat the search or train on the test set.
 
-The three demo PDFs/PNGs were reconstructed from held-out invoice IDs using the public mirror below and cross-checked against the exported predictions. They are newly formatted sample documents, not authentic company invoices. One case intentionally illustrates a false alert. Outcomes are withheld from document text and prediction inputs and revealed separately after scoring.
+Data: 2,466 sample/synthetic invoice records, 12 original columns; 1,390 training, 409 validation and 500 test invoices. Another 167 rows are excluded because outcomes were not known at the relevant split cutoff. Validation begins 2013-02-26; test begins 2013-07-12. All test customers were seen in training.
 
-Data mirror used to recover the original invoice fields:
-https://github.com/JVGITHUBANALYTICS/MLOps-E2E/blob/master/Lab43/WA_Fn-UseC_-Accounts-Receivable.csv
+Preprocessing: categorical imputation and one-hot encoding; numerical median imputation and standardisation; zero-variance feature removal. All transformations fit only on training rows. Five raw candidates become 109 encoded features, of which 108 are retained. Constant 30-day payment terms are removed. Optional app dates are used to derive terms, but the removed feature cannot influence these models.
 
-The source dataset listing supplied by the user did not establish a redistribution license. This educational package contains only the three reconstructed demonstration records and the user's supplied evaluation artifacts; it does not claim a license for the source dataset. Use your own authorised company data for a real deployment.
+XGBoost was selected by validation AP (~0.8006). Each classifier has its own validation-F1-maximising threshold; XGBoost's is ~0.2881. Test AP is ~0.7176, recall ~0.7746 and F1 ~0.6832. Scores are not calibrated real-world probabilities.
 
-## Session behaviour
+Random Forest Regressor won validation MAE (~2.7255 days), narrowly beating Ridge. Its test MAE is ~2.3527 days. Ridge (~2.2875) and the zero-day median baseline (~2.2840) have lower overall test MAE. The baseline performs poorly on late invoices. The app displays these results without changing selection based on the test set.
 
-Uploaded bytes and history are stored in the active Streamlit session, not a database or shared upload directory. Download CSV results before ending the session. Refresh/reconnect or a hosting restart can lose session state. The model resource is shared read-only; uploaded content is not globally cached. No external OCR/LLM API, API key, or paid inference service is required.
+The test period was inspected in previous project iterations. It is a held-out chronological period, not a fresh independent evaluation. Results do not establish performance for other companies, currencies, new customers or different payment terms. Class imbalance does not by itself prove overfitting.
 
-## Verification
+## Reproduce and test
 
-Run `python -m unittest discover -s tests -v` after installing requirements. See VERIFICATION.md for results and environment limitations.
+```bash
+python scripts/build_models.py
+python -m unittest discover -s tests -v
+```
+
+The build verifies test AP for all five classifiers and test MAE for all three regressors against the executed notebook's rounded results. `models/metadata.json` records exact package versions and fitted parameters. Evaluation predictions and tables are saved alongside the model bundle. The complete notebook and its separate environment requirements are in `notebooks/`.
+
+## GitHub and later deployment
+
+This folder is ready to replace/update the existing `Chaitali-24csu246/Invoice-Risk-Analysis` repository. Keep `models/`, `demo_invoices/`, `.streamlit/`, `core.py`, `comparison.py`, `app.py`, `requirements.txt` and `packages.txt` together. The model bundle is small enough for ordinary Git; do not exclude it.
+
+Nothing has been pushed or deployed as part of this update. For later Streamlit deployment, the entry point is `app.py`, Python 3.12, and system OCR packages are in `packages.txt`. The optional Dockerfile uses port 7860 for a later Docker/Hugging Face deployment. Docker is not required for local or Streamlit hosting.
+
+Never commit `.venv`, credentials, `.streamlit/secrets.toml` or private uploaded invoices. Only the bundled public sample data/demo documents belong in the repository. Only load the project's trusted model file; pickle/joblib files can execute code.
+
+## Data source
+
+Public IBM accounts-receivable sample distributed at https://www.kaggle.com/datasets/hhenry/finance-factoring-ibm-late-payment-histories . Source CSV: `WA_Fn-UseC_-Accounts-Receivable.csv`. Demo PDFs reconstruct held-out records; they are not original business invoices. See the notebook for the full preprocessing, search, visualisations and interpretation.

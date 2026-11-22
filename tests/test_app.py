@@ -26,6 +26,24 @@ class ModelAndExtractionTests(unittest.TestCase):
             self.assertAlmostEqual(actual['predicted_days_overdue'], expected.predicted_days_overdue, places=10)
             self.assertEqual(actual['predicted_late'], expected.predicted_late)
 
+    def test_every_model_matches_saved_predictions(self):
+        class_saved=pd.read_csv(ROOT/'models/test_classification_predictions.csv',dtype={'invoiceNumber':str})
+        reg_saved=pd.read_csv(ROOT/'models/test_regression_predictions.csv',dtype={'invoiceNumber':str})
+        for demo in self.demos.values():
+            for classifier in self.bundle['classifiers']:
+                for regressor in self.bundle['regressors']:
+                    actual=score_invoice(demo['features'],self.bundle,self.categories,classifier,regressor)
+                    c=class_saved[(class_saved.Model==classifier)&(class_saved.invoiceNumber==demo['invoiceNumber'])].iloc[0]
+                    r=reg_saved[(reg_saved.Model==regressor)&(reg_saved.invoiceNumber==demo['invoiceNumber'])].iloc[0]
+                    self.assertAlmostEqual(actual['late_score'],c.late_score,places=10)
+                    self.assertAlmostEqual(actual['predicted_days_overdue'],r.predicted_days_overdue,places=10)
+                    self.assertEqual(actual['predicted_late'],c.predicted_late)
+                    self.assertEqual(actual['threshold'],self.bundle['thresholds'][classifier])
+
+    def test_unknown_model_rejected(self):
+        with self.assertRaises(ValueError):
+            score_invoice(next(iter(self.demos.values()))['features'],self.bundle,self.categories,'missing','Ridge')
+
     def test_text_pdf_fields(self):
         for demo in self.demos.values():
             name=demo['filename']
@@ -86,9 +104,30 @@ class InterfaceTests(unittest.TestCase):
         self.assertEqual(len(app.exception),0)
         self.assertEqual(len(app.dataframe),1)
         self.assertNotIn('_identity',app.dataframe[0].value.columns)
-        app.sidebar.radio[0].set_value('Model performance').run()
+        app.sidebar.radio[0].set_value('Compare models').run()
         self.assertEqual(len(app.exception),0)
         self.assertGreater(len(app.metric),4)
+
+    def test_alternative_models_are_saved(self):
+        app=AppTest.from_file(str(ROOT/'app.py'),default_timeout=30).run()
+        next(s for s in app.selectbox if s.label=='Classification model').set_value('Logistic Regression').run()
+        next(s for s in app.selectbox if s.label=='Delay estimation model').set_value('Ridge').run()
+        app.checkbox[0].check().run()
+        app.button[0].click().run()
+        self.assertEqual(len(app.exception),0)
+        result=app.session_state['analysis']['prediction']
+        self.assertEqual(result['classifier'],'Logistic Regression')
+        self.assertEqual(result['regressor'],'Ridge')
+        next(b for b in app.button if b.label=='Save to session history').click().run()
+        self.assertEqual(app.session_state['history'][0]['classifier'],'Logistic Regression')
+
+    def test_validation_comparisons(self):
+        app=AppTest.from_file(str(ROOT/'app.py'),default_timeout=30).run()
+        app.sidebar.radio[0].set_value('Compare models').run()
+        next(r for r in app.radio if r.label=='Evaluation dataset').set_value('Validation').run()
+        self.assertEqual(len(app.exception),0)
+        self.assertTrue(any(len(d.value)==6 for d in app.dataframe))
+        self.assertTrue(any(len(d.value)==4 for d in app.dataframe))
 
     def test_unconfirmed_invoice_blocked(self):
         app=AppTest.from_file(str(ROOT/'app.py'),default_timeout=30).run()

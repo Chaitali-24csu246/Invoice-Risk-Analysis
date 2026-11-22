@@ -24,7 +24,7 @@ def assets():
 try:
     bundle, metadata, categories = assets()
 except Exception:
-    st.error('The saved model could not be loaded. Install requirements.txt in a fresh Python 3.13 environment and keep the models folder beside app.py.')
+    st.error('The saved model could not be loaded. Install requirements.txt in a fresh Python 3.12 environment and keep the models folder beside app.py.')
     st.stop()
 
 if 'history' not in st.session_state:
@@ -33,10 +33,10 @@ if 'history' not in st.session_state:
 with st.sidebar:
     st.title('Invoice Lens')
     st.caption('PAYMENT RISK CHECKER')
-    page = st.radio('Workspace', ['Analyse invoice', 'Session history', 'Model performance'], label_visibility='collapsed')
+    page = st.radio('Workspace', ['Analyse invoice', 'Session history', 'Compare models'], label_visibility='collapsed')
     st.divider()
     st.caption('Company-specific academic prototype. Synthetic/sample invoice data.')
-    st.caption('Uses your saved Logistic Regression and Ridge models. No retraining.')
+    st.caption('5 classifiers · 3 regressors. Saved models; no retraining during analysis.')
     st.caption('Uploads and results stay in this browser session on the app server. History resets when the session ends; download it to keep a copy.')
 
 if page == 'Session history':
@@ -60,41 +60,9 @@ if page == 'Session history':
             st.rerun()
     st.stop()
 
-if page == 'Model performance':
-    st.title('How the models performed')
-    st.write('Recorded results from the untouched chronological test set: 500 invoices, all from known customers.')
-    c = metadata['classification_test']
-    r = metadata['regression_test']
-    st.subheader('Late-payment classification')
-    a,b,d,e = st.columns(4)
-    a.metric('Late-payment recall', f"{c['Recall']:.1%}")
-    b.metric('Alert precision', f"{c['Precision']:.1%}")
-    d.metric('ROC-AUC', f"{c['ROC_AUC']:.3f}")
-    e.metric('Average precision', f"{c['Average_precision']:.3f}")
-    results = pd.read_csv(ROOT / 'models/test_predictions.csv')
-    confusion = pd.crosstab(results['actual_late'], results['predicted_late']).reindex(index=[0,1], columns=[0,1], fill_value=0)
-    confusion.index = ['Actually on time', 'Actually late']
-    confusion.columns = ['Predicted on time', 'Predicted late']
-    st.dataframe(confusion, width='stretch')
-    st.caption(f"Classifier: {metadata['classifier']}. Decision threshold: {bundle['classification_threshold']:.6f}. The score is not calibrated as a real-world probability.")
-    st.subheader('Estimated days overdue')
-    a,b,d = st.columns(3)
-    a.metric('Average absolute error', f"{r['MAE_days']:.2f} days")
-    b.metric('Error on late invoices', f"{r['Late_only_MAE']:.2f} days")
-    d.metric('R²', f"{r['R2']:.3f}")
-    st.caption('These are average errors, not a guaranteed prediction interval. Delay is estimated across all invoices, including on-time invoices.')
-    with st.expander('Validation model comparisons'):
-        st.write('Classification: ordinary training compared with inverse-frequency class weighting.')
-        st.dataframe(pd.read_csv(ROOT / 'models/classification_comparison.csv'), hide_index=True)
-        st.dataframe(pd.read_csv(ROOT / 'models/regression_comparison.csv'), hide_index=True)
-    st.subheader('What this prototype can tell you')
-    st.markdown('''- Predicts **late payment**, not permanent non-payment or fraud.
-- Supports the customers and category values represented in training.
-- Uses customer ID, country code, billing method and amount. Invoice dates are recorded for review but are not model inputs.
-- Customer ID encodes behaviour learned during training; this version does not retrieve a live payment ledger.
-- The data is synthetic/sample data from 2012–2013. Unrelated invoices, new companies, currencies and amount ranges have not been validated.
-- Imbalance was evaluated using class weights; the selected ordinary classifier uses a validation-tuned threshold.
-- The app loads the exact exported models and does not learn from uploaded invoices.''')
+if page == 'Compare models':
+    from comparison import render_comparison
+    render_comparison(bundle, metadata)
     st.stop()
 
 st.title('A clearer view of payment risk')
@@ -172,6 +140,10 @@ with right:
         c1,c2 = st.columns(2)
         issued = c1.date_input('Invoice date (optional)', value=fields.get('InvoiceDate'), min_value=datetime(1900,1,1), max_value=datetime(2100,12,31))
         due = c2.date_input('Due date (optional)', value=fields.get('DueDate'), min_value=datetime(1900,1,1), max_value=datetime(2100,12,31))
+        st.markdown('**Choose your models**')
+        classifier_name = st.selectbox('Classification model', list(bundle['classifiers']), index=list(bundle['classifiers']).index(bundle['default_classifier']), format_func=lambda n: n + (' — Recommended' if n == bundle['default_classifier'] else ''))
+        regressor_name = st.selectbox('Delay estimation model', list(bundle['regressors']), index=list(bundle['regressors']).index(bundle['default_regressor']), format_func=lambda n: n + (' — Recommended' if n == bundle['default_regressor'] else ''))
+        st.caption('Recommended models were selected on validation results. Each classifier uses its own validation-tuned cutoff.')
         checked = st.checkbox('I have checked these details against the invoice.')
         submitted = st.form_submit_button('Analyse payment risk', type='primary', width='stretch')
     if submitted:
@@ -181,7 +153,7 @@ with right:
         else:
             inputs = {'customerID':customer,'countryCode':country,'PaperlessBill':billing,'InvoiceAmount':amount,'InvoiceDate':issued,'DueDate':due}
             try:
-                prediction = score_invoice(inputs, bundle, categories)
+                prediction = score_invoice(inputs, bundle, categories, classifier_name, regressor_name)
                 st.session_state.analysis = {'source_id':source_id, 'source':source,'invoiceNumber':invoice_id or 'Not supplied', 'inputs':inputs, 'prediction':prediction}
             except ValueError as error:
                 st.error(str(error))
@@ -191,6 +163,9 @@ if analysis and analysis['source_id'] == source_id:
     st.divider()
     st.subheader('3. Your payment-risk result')
     p = analysis['prediction']
+    st.caption(f"Classification: {p['classifier']} · Delay estimate: {p['regressor']}")
+    if analysis['inputs'].get('InvoiceDate') and analysis['inputs'].get('DueDate') and (analysis['inputs']['DueDate'] - analysis['inputs']['InvoiceDate']).days != 30:
+        st.warning('The training data only contained 30-day payment terms. Predictions for other terms have not been validated; the constant terms feature was removed during training.')
     c1,c2,c3 = st.columns(3)
     c1.metric('Payment prediction', 'Likely late' if p['predicted_late'] else 'Likely on time')
     c2.metric('Late-payment risk score', f"{p['late_score'] * 100:.1f} / 100")
@@ -201,6 +176,15 @@ if analysis and analysis['source_id'] == source_id:
     with st.expander('Details used for this result'):
         st.json({**{k:str(v) for k,v in analysis['inputs'].items()}, 'invoiceNumber':analysis['invoiceNumber']})
         st.caption('After editing the form, press Analyse again to update the result. Classification and regression are independent; a small positive delay can accompany a likely-on-time prediction.')
+    with st.expander('Compare all models on this invoice'):
+        class_rows = []
+        for name in bundle['classifiers']:
+            result = score_invoice(analysis['inputs'], bundle, categories, name, p['regressor'])
+            class_rows.append({'Model':name, 'Risk score / 100':round(result['late_score']*100,2), 'Cutoff / 100':round(result['threshold']*100,2), 'Prediction':'Likely late' if result['predicted_late'] else 'Likely on time'})
+        st.dataframe(pd.DataFrame(class_rows), hide_index=True, width='stretch')
+        reg_rows = [{'Model':name, 'Estimated days overdue':round(score_invoice(analysis['inputs'], bundle, categories, p['classifier'], name)['predicted_days_overdue'],2)} for name in bundle['regressors']]
+        st.dataframe(pd.DataFrame(reg_rows), hide_index=True, width='stretch')
+        st.caption('These are predictions for the same reviewed inputs, not evaluation metrics. Models may disagree.')
     if st.button('Save to session history', type='primary'):
         entry = {'invoiceNumber':analysis['invoiceNumber'], 'source':source, **{k:str(v) if k in ['InvoiceDate','DueDate'] else v for k,v in analysis['inputs'].items()}, **p}
         identity = json.dumps(entry, sort_keys=True)
