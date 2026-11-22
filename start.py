@@ -14,7 +14,7 @@ import webbrowser
 root = Path(__file__).resolve().parent
 os.chdir(root)
 if not ((3, 11) <= sys.version_info[:2] <= (3, 13)):
-    raise SystemExit('Please install Python 3.13 (recommended), 3.12 or 3.11 and try again.')
+    raise SystemExit('Please install Python 3.12 (recommended), 3.13 or 3.11 and try again.')
 folder = root / '.venv'
 python = folder / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
 if not python.exists():

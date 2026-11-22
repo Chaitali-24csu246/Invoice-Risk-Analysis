@@ -1,5 +1,5 @@
-FROM python:3.13-slim
-RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng && rm -rf /var/lib/apt/lists/*
+FROM python:3.12-slim
+RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng libgomp1 && rm -rf /var/lib/apt/lists/*
 RUN useradd -m -u 1000 appuser
 WORKDIR /app
 COPY requirements.txt .
